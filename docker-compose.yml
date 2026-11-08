@@ -1,0 +1,91 @@
+services:
+  mysql-baseline:
+    image: mysql:8.0
+    container_name: tpcc-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tpcc
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "3307:3306"
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --skip-name-resolve
+      - --innodb-buffer-pool-size=512M
+      - --innodb-lock-wait-timeout=5
+      - --transaction-isolation=REPEATABLE-READ
+      - --max-connections=500
+    networks:
+      - tpcc-net
+
+  mongodb:
+    image: mongo:7.0
+    container_name: tpcc-mongodb
+    restart: always
+    ports:
+      - "27018:27017"
+    command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.5"]
+    networks:
+      - tpcc-net
+
+  pd0:
+    image: pingcap/pd:v7.5.1
+    container_name: tpcc-pd0
+    restart: always
+    ports:
+      - "2379:2379"
+    command:
+      - --name=pd0
+      - --client-urls=http://0.0.0.0:2379
+      - --peer-urls=http://0.0.0.0:2380
+      - --advertise-client-urls=http://pd0:2379
+      - --advertise-peer-urls=http://pd0:2380
+      - --initial-cluster=pd0=http://pd0:2380
+      - --data-dir=/data/pd0
+    networks:
+      - tpcc-net
+
+  tikv0:
+    image: pingcap/tikv:v7.5.1
+    container_name: tpcc-tikv0
+    restart: always
+    command:
+      - --addr=0.0.0.0:20160
+      - --advertise-addr=tikv0:20160
+      - --data-dir=/data/tikv0
+      - --pd=pd0:2379
+    depends_on:
+      - pd0
+    networks:
+      - tpcc-net
+
+  tidb0:
+    image: pingcap/tidb:v7.5.1
+    container_name: tpcc-tidb
+    restart: always
+    ports:
+      - "4000:4000"
+      - "10080:10080"
+    command:
+      - --store=tikv
+      - --path=pd0:2379
+    depends_on:
+      - tikv0
+    networks:
+      - tpcc-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: tpcc-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - tpcc-net
+
+networks:
+  tpcc-net:
+    name: btl-dbms_tpcc-net
+    external: true
