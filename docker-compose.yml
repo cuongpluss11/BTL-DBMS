@@ -85,6 +85,21 @@ services:
     networks:
       - tpcc-net
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: btl-dbms-app:latest
+    container_name: tpcc-benchmark-app
+    depends_on:
+      - mysql-baseline
+      - tidb0
+      - mongodb
+      - redis
+    networks:
+      - tpcc-net
+    profiles: ["app", "tools"]
+
 networks:
   tpcc-net:
     name: btl-dbms_tpcc-net

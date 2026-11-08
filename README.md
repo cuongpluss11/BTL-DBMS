@@ -1,4 +1,4 @@
-# BTL CƠ SỞ DỮ LIỆU: ĐÁNH GIÁ DỊ THƯỜNG ĐỒNG THỜI, TRANH CHẤP KHÓA VÀ MỞ RỘNG QUY MÔ (TPC-C BENCHMARK SUITE)
+# BTL HỆ QUẢN TRỊ CƠ SỞ DỮ LIỆU: ĐÁNH GIÁ DỊ THƯỜNG ĐỒNG THỜI, TRANH CHẤP KHÓA VÀ MỞ RỘNG QUY MÔ (TPC-C BENCHMARK SUITE)
 
 **Đề tài:** Evaluating Concurrency Anomalies, Lock Contention, and Distributed Scaling Trade-offs Across SQL (MySQL InnoDB), NoSQL (MongoDB), and NewSQL (TiDB) Under High-Contention Workloads.
 
@@ -24,6 +24,12 @@ Tất cả các DBMS được quản lý qua `docker-compose.yml` trong cùng m�
 * **TiDB:** `jdbc:mysql://localhost:4000/tpcc?useSSL=false&serverTimezone=UTC` (User: `root`, Pass: *(trống)*)
 * **MongoDB:** `mongodb://localhost:27018/?replicaSet=rs0&directConnection=true` (Database: `tpcc`)
 * **Redis:** `redis://localhost:6379`
+
+### Kết nối qua các công cụ GUI (Giao diện đồ họa):
+* **MySQL Workbench (MySQL Baseline):** Host `127.0.0.1`, Port `3307`, User `root`, Pass `rootpassword`, Schema `tpcc`.
+* **MySQL Workbench (TiDB NewSQL):** Host `127.0.0.1`, Port `4000`, User `root`, Pass *(để trống)*, Schema `tpcc` *(Bấm "Continue Anyway" nếu hiện cảnh báo version)*.
+* **MongoDB Compass (MongoDB NoSQL):** Dán URI `mongodb://localhost:27018/?replicaSet=rs0&directConnection=true` -> Bấm **Connect**.
+* **Redis Insight (Redis Cache):** Host `127.0.0.1`, Port `6379`, Pass *(trống)* -> Bấm **Add Database**.
 
 ---
 
@@ -92,12 +98,106 @@ Hệ thống triển khai đầy đủ **9 bảng quan hệ của TPC-C** (và �
 
 ---
 
-## 4. HƯỚNG DẪN THỰC THI VÀ KIỂM THỬ
+## 4. HƯỚNG DẪN CHẠY DỰ ÁN BẰNG DOCKER (KHUYẾN NGHỊ - KHÔNG CẦN CÀI JAVA)
 
-### 4.1. Kiểm tra trạng thái Docker Containers
+Dự án đã được cấu hình hóa Docker 100%. Bạn có thể chạy toàn bộ hệ thống (gồm 4 DBMS và ứng dụng Benchmark Java) hoàn toàn bằng Docker mà không cần cài đặt môi trường Java trên máy cá nhân.
+
+### 4.1. Khởi động cụm DBMS & Khởi tạo (1 Bước duy nhất)
+Sử dụng script tự động:
+* **PowerShell:**
+  ```powershell
+  .\setup-docker.ps1
+  ```
+* **Command Prompt (CMD):**
+  ```cmd
+  setup-docker.bat
+  ```
+* **Hoặc bằng lệnh Docker Compose thủ công:**
+  ```bash
+  # 1. Khởi động 6 containers DBMS ngầm
+  docker compose up -d mysql-baseline tidb0 tikv0 pd0 mongodb redis
+
+  # 2. Chờ 10 giây cho các DB sẵn sàng, sau đó khởi tạo ReplicaSet rs0 và TiDB DB:
+  docker exec tpcc-mongodb mongosh --eval "rs.initiate()"
+  docker exec tpcc-mysql mysql -h tpcc-tidb -P 4000 -u root -e "CREATE DATABASE IF NOT EXISTS tpcc;"
+
+  # 3. Build Docker image cho ứng dụng benchmark
+  docker compose build app
+  ```
+
+### 4.2. Kiểm tra kết nối tới 4 DBMS qua Docker
 ```powershell
-docker-compose ps
+.\docker-run.ps1 check-conn
+# Hoặc bằng lệnh Docker:
+docker compose run --rm app check-conn
 ```
+
+### 4.3. Chạy Kiểm Thử Thông Luồng TPC-C W=1 (Smoke Test)
+Lệnh này tự động thực hiện cả 6 bước: Test kết nối -> Tạo Schema -> Nạp Dataset W=1 -> Chạy 5 giao dịch TPC-C -> Benchmark 4 threads -> Kiểm tra 3 Invariants:
+```powershell
+.\docker-run.ps1 smoke-test
+# Hoặc:
+docker compose run --rm app smoke-test
+```
+
+### 4.4. Nạp Dữ Liệu TPC-C Tùy Chỉnh Bằng Docker
+```powershell
+# Nạp W=1 (100.000 items, 3.000 khách hàng) cho tất cả các DBMS:
+.\docker-run.ps1 load-data -w 1 --items 100000 --customers 3000 --target all
+
+# Chỉ nạp cho MySQL:
+.\docker-run.ps1 load-data -w 1 --items 2000 --customers 300 --target mysql
+```
+
+### 4.5. Chạy Benchmark Đo Đạc Hiệu Năng Bằng Docker
+```powershell
+# Benchmark MySQL InnoDB: 10 threads, chạy trong 30s
+.\docker-run.ps1 benchmark --target mysql --threads 10 --duration 30
+
+# Benchmark TiDB NewSQL: 10 threads, chạy trong 30s
+.\docker-run.ps1 benchmark --target tidb --threads 10 --duration 30
+
+# Benchmark MongoDB NoSQL: 10 threads, chạy trong 30s
+.\docker-run.ps1 benchmark --target mongo --threads 10 --duration 30
+
+# Mô phỏng tranh chấp Flash-Sale (Zipfian Skew theta = 0.85):
+.\docker-run.ps1 benchmark --target mysql --threads 16 --duration 30 --theta 0.85
+```
+
+### 4.6. Kiểm Chứng Bất Biến Nghiệp Vụ (Invariant Auditing) Bằng Docker
+```powershell
+.\docker-run.ps1 verify
+# Hoặc:
+docker compose run --rm app verify
+```
+
+### 4.7. Dừng và Dọn Dẹp Cụm Docker
+```powershell
+# Dừng các containers (dữ liệu vẫn giữ lại)
+docker compose stop
+
+# Dừng và xóa containers
+docker compose down
+```
+
+---
+
+## 5. HƯỚNG DẪN CHẠY KẾT HỢP (DBMS TRÊN DOCKER + APP TRÊN MÁY HOST)
+
+Nếu máy bạn đã có sẵn Java 17+ và muốn phát triển, debug mã nguồn Java trực tiếp:
+```powershell
+# 1. Khởi động 4 DBMS trên Docker
+docker compose up -d mysql-baseline tidb0 tikv0 pd0 mongodb redis
+
+# 2. Chạy ứng dụng Java từ máy Host kết nối qua cổng Exposed (3307, 4000, 27018, 6379):
+.\run.ps1 check-conn
+.\run.ps1 smoke-test
+.\run.ps1 benchmark --target mysql --threads 8 --duration 15
+```
+
+---
+
+## 6. BỘ DỮ LIỆU CHUẨN 9 BẢNG TPC-C
 
 ### 4.2. Kiểm tra thông luồng kết nối 4 DBMS (Check Connectivity)
 ```powershell

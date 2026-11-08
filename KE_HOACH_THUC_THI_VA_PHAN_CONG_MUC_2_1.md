@@ -4,9 +4,9 @@
 **Đề tài:** Evaluating Concurrency Anomalies, Lock Contention, and Distributed Scaling Trade-offs Across SQL (MySQL InnoDB), NoSQL (MongoDB), and NewSQL (TiDB) Under High-Contention Workloads  
 **Trọng tâm tài liệu:** Kế hoạch thực thi Mục 2.1 (Thiết lập Bài toán, Dữ liệu, Tải công việc và Hệ thống cơ sở Baseline)  
 **Nhóm sinh viên thực hiện:**
-1. **Nguyễn Mạnh Cường** (Trưởng nhóm - Tech Lead)
-2. **Duy Anh** (Thành viên - NewSQL & Distributed Engine Specialist)
-3. **Lực** (Thành viên - NoSQL & In-Memory Cache Specialist)
+1. **Nguyễn Mạnh Cường** (MySQL)
+2. **Duy Anh** (NewSQL & Distributed Engine Specialist)
+3. **Lực** (NoSQL & In-Memory Cache Specialist)
 
 ---
 
@@ -89,6 +89,88 @@ Quy trình này tự động:
 
 ---
 
+### 1.5. Hướng dẫn chi tiết kết nối các DBMS trên Giao diện Đồ họa (GUI Clients)
+
+Để phục vụ trực quan hóa dữ liệu, duyệt schema và hỗ trợ kiểm tra nhanh, các thành viên sử dụng 3 công cụ UI phổ biến: **MySQL Workbench**, **MongoDB Compass** và **Redis Insight**. Dưới đây là thông số và các bước kết nối chi tiết:
+
+#### 1. Kết nối MySQL 8.0 Baseline qua MySQL Workbench
+* **Connection Name:** `MySQL 8.0 Baseline (Docker)`
+* **Connection Method:** `Standard (TCP/IP)`
+* **Hostname:** `127.0.0.1` (hoặc `localhost`)
+* **Port:** `3307` *(Lưu ý: Không dùng cổng mặc định 3306 vì Docker đang ánh xạ 3307:3306 nhằm tránh xung đột)*
+* **Username:** `root`
+* **Password:** `rootpassword` *(Nhấn nút "Store in Vault..." để lưu)*
+* **Default Schema:** `tpcc`
+* **Các bước thực hiện:**
+  1. Mở MySQL Workbench $\rightarrow$ Bấm biểu tượng dấu cộng `(+)` tại **MySQL Connections**.
+  2. Nhập các thông số trên $\rightarrow$ Nhấn **Test Connection**.
+  3. Hộp thoại thông báo `"Successfully made the MySQL connection"` hiện lên $\rightarrow$ Nhấn **OK**.
+  4. Mở kết nối, chạy thử câu lệnh kiểm tra:
+     ```sql
+     USE tpcc;
+     SHOW TABLES;
+     SELECT COUNT(*) FROM warehouse;
+     ```
+
+#### 2. Kết nối TiDB 7.5 NewSQL qua MySQL Workbench
+*(TiDB tương thích 100% giao thức mạng và cú pháp SQL của MySQL 5.7/8.0, do đó sử dụng chính MySQL Workbench để quản trị)*
+* **Connection Name:** `TiDB 7.5 Distributed NewSQL (Docker)`
+* **Connection Method:** `Standard (TCP/IP)`
+* **Hostname:** `127.0.0.1` (hoặc `localhost`)
+* **Port:** `4000` *(Cổng dịch vụ TiDB Server)*
+* **Username:** `root`
+* **Password:** *(Để trống hoàn toàn - không nhập mật khẩu)*
+* **Default Schema:** `tpcc`
+* **Cấu hình Tab SSL:** Chọn `SSL Mode: If available` (hoặc `Disabled`).
+* **Các bước thực hiện & Lưu ý quan trọng:**
+  1. Tạo kết nối mới với thông số trên $\rightarrow$ Nhấn **Test Connection**.
+  2. *Cảnh báo xuất hiện:* Workbench có thể hiện thông báo popup `"Incompatible/Non-standard server version or MariaDB"`. Đây là đặc tính nhận diện phiên bản của TiDB (báo `5.7.25-TiDB-v7.5.1`). $\rightarrow$ **Tích chọn "Don't show this message again" và bấm "Continue Anyway"**.
+  3. Mở kết nối, thực thi câu lệnh kiểm tra thông tin cụm phân tán TiDB:
+     ```sql
+     SELECT tidb_version();
+     USE tpcc;
+     SHOW TABLE stock REGIONS;
+     ```
+
+#### 3. Kết nối MongoDB 7.0 (ReplicaSet rs0) qua MongoDB Compass
+* **Cách 1 - Kết nối nhanh qua Connection String (Khuyên dùng):**
+  1. Mở MongoDB Compass.
+  2. Dán chuỗi kết nối sau vào thanh `New Connection`:
+     ```text
+     mongodb://localhost:27018/?replicaSet=rs0&directConnection=true
+     ```
+  3. Nhấn nút **Connect**.
+* **Cách 2 - Điền thông số thủ công (Fill in fields individually):**
+  * **Host:** `localhost` hoặc `127.0.0.1`
+  * **Port:** `27018`
+  * **Authentication:** `None`
+  * **Tab More Options:**
+    * **Direct Connection:** Chọn `true` *(Bắt buộc bật Direct Connection để Compass kết nối thẳng vào cổng host 27018 mà không bị chuyển hướng sai sang hostname nội bộ của container `tpcc-mongodb`)*.
+    * **Replica Set Name:** Nhập `rs0`.
+* **Kiểm tra dữ liệu sau khi kết nối:**
+  * Chọn database `tpcc` $\rightarrow$ Duyệt 9 collections: `warehouse`, `district`, `customer`, `history`, `orders`, `new_order`, `order_line`, `item`, `stock`.
+  * Nhấp vào từng collection để xem cấu trúc document BSON và danh sách Indexes.
+
+#### 4. Kết nối Redis 7 In-Memory qua Redis Insight
+* **Database Alias:** `TPC-C Redis In-Memory Cache`
+* **Host:** `127.0.0.1` (hoặc `localhost`)
+* **Port:** `6379`
+* **Username / Password:** *(Để trống - không cấu hình mật khẩu trong môi trường thử nghiệm)*
+* **Database Index:** `0`
+* **Các bước thực hiện:**
+  1. Mở Redis Insight $\rightarrow$ Chọn **Add Redis Database** $\rightarrow$ **Add database manually**.
+  2. Điền `Host: 127.0.0.1`, `Port: 6379`, `Alias: TPC-C Redis Cache` $\rightarrow$ Nhấn **Add Redis Database**.
+  3. Nhấp vào kết nối vừa tạo:
+     * **Key Browser:** Tìm kiếm các mẫu khóa `item:*` (lưu trữ chi tiết 100.000 sản phẩm dưới dạng Hash) hoặc `stock:*` (bộ đếm tồn kho phục vụ Flash-Sale).
+     * **Workbench / CLI:** Nhấn vào biểu tượng CLI góc dưới màn hình, gõ lệnh kiểm tra:
+       ```text
+       PING
+       DBSIZE
+       INFO memory
+       ```
+
+---
+
 ## PHẦN 2: KẾ HOẠCH THỰC THI CHI TIẾT CHO MỤC 2.1
 *(Căn cứ theo Đề cương chi tiết Bài tập lớn)*
 
@@ -167,19 +249,19 @@ Xây dựng và nạp bộ dữ liệu đầy đủ quy mô cơ sở $W = 10$ kh
 * **C (Consulted):** Người được tham vấn chuyên môn.
 * **I (Informed):** Người được thông báo kết quả.
 
-| Hạng mục công việc Mục 2.1 | Cường (Trưởng nhóm) | Duy Anh | Lực | Hạn hoàn thành | Sản phẩm đầu ra |
+| Hạng mục công việc Mục 2.1 | Cường (Trưởng nhóm) | Duy Anh | Lực | Giai đoạn thực thi | Sản phẩm đầu ra |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Hạ tầng Docker & Kết nối 4 DBMS** | **A / R** | C | C | Ngày 1 | File [`docker-compose.yml`](file:///E:/BTL-DBMS/docker-compose.yml), lệnh `check-conn` [OK] |
-| **2. Kiến trúc Java Core & Connection Pools** | **A / R** | I | I | Ngày 1 | Code [`ConnectionManager.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/connection/ConnectionManager.java), [`DbConfig.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/config/DbConfig.java) |
-| **3. DDL Schemas chuẩn 9 bảng TPC-C** | **A / R** | R (TiDB) | R (Mongo) | Ngày 2 | [`schema-mysql.sql`](file:///E:/BTL-DBMS/src/main/resources/schema/schema-mysql.sql), [`schema-tidb.sql`](file:///E:/BTL-DBMS/src/main/resources/schema/schema-tidb.sql), Mongo indexes |
-| **4. Bộ sinh & nạp dữ liệu TPC-C (DataLoader)** | **A / R** | C | C | Ngày 2 | Code [`DataLoader.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/dataset/DataLoader.java) gom lô 1000 rows/batch |
-| **5. Triển khai 5 giao dịch TPC-C trên MySQL** | **A / R** | I | I | Ngày 3 | Code [`MySqlTpccExecutor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/MySqlTpccExecutor.java) |
-| **6. Triển khai 5 giao dịch TPC-C trên TiDB** | A | **R** | I | Ngày 3 | Code [`TidbTpccExecutor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/TidbTpccExecutor.java) (2PC / Pessimistic) |
-| **7. Triển khai 5 giao dịch trên MongoDB & Redis** | A | I | **R** | Ngày 3 | Code [`MongoTpccExecutor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/MongoTpccExecutor.java), Redis stock sync |
-| **8. Bộ sinh tải Flash-Sale Zipfian Skew** | **A / R** | C | C | Ngày 4 | Code [`ZipfianGenerator.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/ZipfianGenerator.java) ($\theta = 0.0 \rightarrow 0.8+$) |
-| **9. Engine Kiểm chứng Bất biến (Invariant Audit)**| **A / R** | C | C | Ngày 4 | Code [`InvariantAuditor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/verification/InvariantAuditor.java) |
-| **10. Chạy đo đạc thực nghiệm Baseline W=10** | **A / R** (MySQL) | **R** (TiDB) | **R** (Mongo/Redis) | Ngày 5 | Log đo đạc TPS, độ trễ p50..p99.9 của cả 4 hệ thống |
-| **11. Viết Báo cáo tổng hợp Mục 2.1** | **A / R** (Tổng hợp) | R (Viết TiDB) | R (Viết Mongo) | Ngày 6 | Tài liệu Markdown + Bảng dữ liệu thực tế |
+| **1. Hạ tầng Docker & Kết nối 4 DBMS** | **A / R** | C | C | Giai đoạn 1 | File [`docker-compose.yml`](file:///E:/BTL-DBMS/docker-compose.yml), lệnh `check-conn` [OK] |
+| **2. Kiến trúc Java Core & Connection Pools** | **A / R** | I | I | Giai đoạn 1 | Code [`ConnectionManager.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/connection/ConnectionManager.java), [`DbConfig.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/config/DbConfig.java) |
+| **3. DDL Schemas chuẩn 9 bảng TPC-C** | **A / R** | R (TiDB) | R (Mongo) | Giai đoạn 2 | [`schema-mysql.sql`](file:///E:/BTL-DBMS/src/main/resources/schema/schema-mysql.sql), [`schema-tidb.sql`](file:///E:/BTL-DBMS/src/main/resources/schema/schema-tidb.sql), Mongo indexes |
+| **4. Bộ sinh & nạp dữ liệu TPC-C (DataLoader)** | **A / R** | C | C | Giai đoạn 2 | Code [`DataLoader.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/dataset/DataLoader.java) gom lô 1000 rows/batch |
+| **5. Triển khai 5 giao dịch TPC-C trên MySQL** | **A / R** | I | I | Giai đoạn 2 | Code [`MySqlTpccExecutor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/MySqlTpccExecutor.java) |
+| **6. Triển khai 5 giao dịch TPC-C trên TiDB** | A | **R** | I | Giai đoạn 2 | Code [`TidbTpccExecutor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/TidbTpccExecutor.java) (2PC / Pessimistic) |
+| **7. Triển khai 5 giao dịch trên MongoDB & Redis** | A | I | **R** | Giai đoạn 2 | Code [`MongoTpccExecutor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/MongoTpccExecutor.java), Redis stock sync |
+| **8. Bộ sinh tải Flash-Sale Zipfian Skew** | **A / R** | C | C | Giai đoạn 3 | Code [`ZipfianGenerator.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/benchmark/ZipfianGenerator.java) ($\theta = 0.0 \rightarrow 0.8+$) |
+| **9. Engine Kiểm chứng Bất biến (Invariant Audit)**| **A / R** | C | C | Giai đoạn 3 | Code [`InvariantAuditor.java`](file:///E:/BTL-DBMS/src/main/java/com/btl/dbms/verification/InvariantAuditor.java) |
+| **10. Chạy đo đạc thực nghiệm Baseline W=10** | **A / R** (MySQL) | **R** (TiDB) | **R** (Mongo/Redis) | Giai đoạn 3 | Log đo đạc TPS, độ trễ p50..p99.9 của cả 4 hệ thống |
+| **11. Viết Báo cáo tổng hợp Mục 2.1** | **A / R** (Tổng hợp) | R (Viết TiDB) | R (Viết Mongo) | Giai đoạn 4 | Tài liệu Markdown + Bảng dữ liệu thực tế |
 
 ---
 
@@ -236,56 +318,78 @@ Xây dựng và nạp bộ dữ liệu đầy đủ quy mô cơ sở $W = 10$ kh
 
 ---
 
-## PHẦN 4: TIẾN ĐỘ THỰC HIỆN VÀ CÁC MỐC QUAN TRỌNG (TIMELINE & MILESTONES)
+## PHẦN 4: TIẾN ĐỘ THỰC HIỆN VÀ CÁC MỐC QUAN TRỌNG (STAGE-GATE WORKFLOW & MILESTONES)
+
+Thay vì cố định theo ngày tháng lịch biểu, tiến độ thực thi Mục 2.1 được quản lý theo mô hình **Giai đoạn chuyển giao chất lượng (Stage-Gate Workflow)**. Một giai đoạn chỉ được nghiệm thu để chuyển sang giai đoạn kế tiếp khi toàn bộ các tiêu chuẩn kiểm thử tự động của giai đoạn đó đạt kết quả **PASS**.
 
 ```mermaid
-gantt
-    title TIẾN ĐỘ THỰC THI MỤC 2.1 BÀI TẬP LỚN (TPC-C BENCHMARK)
-    dateFormat  YYYY-MM-DD
-    section Giai đoạn 1: Base & Hạ tầng
-    Thiết lập Docker 4 DBMS (Cường)                 :done, des1, 2026-11-01, 1d
-    Codebase Java, Maven & Smoke Test W=1 (Cường)   :done, des2, 2026-11-02, 1d
-    section Giai đoạn 2: Nạp Dataset W=10
-    DDL 9 bảng & Sizing 10 Warehouses (Cường)       :active, des3, 2026-11-03, 1d
-    Ánh xạ TiDB & Cấu hình Pessimistic (Duy Anh)    :active, des4, 2026-11-03, 1d
-    Ánh xạ MongoDB (9 Collections + Embedded) (Lực) :active, des5, 2026-11-03, 1d
-    Đồng bộ Cache Redis stock:w:i (Lực)             :active, des6, 2026-11-04, 1d
-    section Giai đoạn 3: Thực nghiệm Baseline
-    Đo đạc Baseline MySQL InnoDB (Cường)            :des7, 2026-11-04, 2d
-    Đo đạc TiDB 2PC & TSO Latency (Duy Anh)         :des8, 2026-11-05, 2d
-    Đo đạc MongoDB Multi-Doc vs Embedded (Lực)      :des9, 2026-11-05, 2d
-    Kiểm chứng Invariants 1, 2, 3 (Cả nhóm)         :des10, 2026-11-06, 1d
-    section Giai đoạn 4: Báo cáo Mục 2.1
-    Viết báo cáo 2.1.1 & 2.1.2 (Cường)              :des11, 2026-11-07, 1d
-    Viết báo cáo TiDB & MongoDB (Duy Anh, Lực)      :des12, 2026-11-07, 1d
-    Tổng hợp, soát lỗi & nghiệm thu Mục 2.1 (Cường) :des13, 2026-11-08, 1d
+flowchart TD
+    subgraph P1["Giai đoạn 1: Base & Hạ tầng Kết nối"]
+        T1["Thiết lập Docker 4 DBMS<br/>(Cường)"] --> T2["Xây dựng Codebase Java & Connection Pools<br/>(Cường)"]
+        T2 --> T3["Smoke Test W=1 Thông luồng<br/>(Cường)"]
+    end
+
+    subgraph P2["Giai đoạn 2: Chuẩn hóa Schema & Nạp Dataset W=10"]
+        T4["DDL 9 bảng MySQL InnoDB & Sizing W=10<br/>(Cường)"]
+        T5["Tối ưu DDL TiDB Distributed Regions<br/>(Duy Anh)"]
+        T6["Ánh xạ 9 Collections MongoDB & Indexing<br/>(Lực)"]
+        T7["Nạp kho danh mục & Đồng bộ Cache Redis<br/>(Lực)"]
+    end
+
+    subgraph P3["Giai đoạn 3: Thực nghiệm Đo đạc Baseline & Kiểm chứng Bất biến"]
+        T8["Benchmark Baseline MySQL InnoDB 512MB<br/>(Cường)"]
+        T9["Đo đạc TiDB 2PC Distributed Tracing & TSO<br/>(Duy Anh)"]
+        T10["Đo đạc MongoDB Multi-Doc ACID vs Embedded<br/>(Lực)"]
+        T11["Kiểm chứng Real-time Invariants 1, 2, 3<br/>(Cả nhóm)"]
+    end
+
+    subgraph P4["Giai đoạn 4: Phân tích Định lượng & Nghiệm thu Báo cáo Mục 2.1"]
+        T12["Viết Mục 2.1.1 (Bài toán & Workload) + 2.1.3 (MySQL)<br/>(Cường)"]
+        T13["Viết Mục 2.1.3 (Phân tích NewSQL TiDB)<br/>(Duy Anh)"]
+        T14["Viết Mục 2.1.3 (Phân tích NoSQL Mongo & Redis)<br/>(Lực)"]
+        T15["Hội chẩn, nghiệm thu & thống nhất báo cáo 2.1<br/>(Trưởng nhóm Cường)"]
+    end
+
+    P1 -->|Gate 1: check-conn & Smoke Test PASS| P2
+    P2 -->|Gate 2: Đủ 3.8M rows & Count khớp| P3
+    P3 -->|Gate 3: Log Benchmark & Invariants PASS| P4
 ```
+
+### Bảng các mốc hoàn thành trọng tâm (Milestones):
+
+| Mốc tiến độ | Tên mốc công việc | Điều kiện chuyển tiếp (Quality Gate) | Trách nhiệm chính |
+| :--- | :--- | :--- | :---: |
+| **Mốc 1 (Milestone 1)** | Hạ tầng Docker & Codebase Core | Lệnh `check-conn` và `smoke-test` trả về 100% `[OK]`, 0 lỗi kết nối. | Cường |
+| **Mốc 2 (Milestone 2)** | Dataset Sizing $W=10$ & Ánh xạ đa mô hình | Cả 3 hệ thống (MySQL, TiDB, MongoDB) nạp đủ $\sim 3,8\text{ triệu bản ghi}$ và Redis đồng bộ $100.000$ items. | Cường, Duy Anh, Lực |
+| **Mốc 3 (Milestone 3)** | Thực nghiệm Baseline & Invariant Audit | Có đầy đủ log text đo đạc TPS, độ trễ p50..p99.9; kiểm tra `verify` đạt `PASS` trên cả 3 đẳng thức. | Cường, Duy Anh, Lực |
+| **Mốc 4 (Milestone 4)** | Nghiệm thu Báo cáo chi tiết Mục 2.1 | Bản thảo báo cáo hoàn chỉnh, đúng quy chuẩn lập luận khoa học, có đủ câu lệnh CLI và trích xuất text nguyên văn. | Cường (Chủ trì) |
 
 ---
 
 ## PHẦN 5: CÁC LỆNH VẬN HÀNH DÀNH CHO CÁC THÀNH VIÊN TRONG NHÓM
 
-Mỗi thành viên khi kéo mã nguồn về máy có thể thực thi ngay các lệnh chuẩn hóa sau:
+Mỗi thành viên khi kéo mã nguồn về máy có thể lựa chọn chạy qua **Docker** (không cần cài Java) hoặc **PowerShell/CMD** trực tiếp:
 
 ### 1. Dành cho Cường (Kiểm thử Baseline MySQL):
 ```powershell
 # Nạp dữ liệu MySQL W=10 đầy đủ
-.\run.ps1 load-data -w 10 --items 100000 --customers 3000 --target mysql
+.\docker-run.ps1 load-data -w 10 --items 100000 --customers 3000 --target mysql
+# (Hoặc máy host: .\run.ps1 load-data -w 10 --items 100000 --customers 3000 --target mysql)
 
 # Chạy tải chuẩn TPC-C trên MySQL (8 luồng, 30 giây, phân bổ đều theta=0.0)
-.\run.ps1 benchmark --target mysql --threads 8 --duration 30 --theta 0.0
+.\docker-run.ps1 benchmark --target mysql --threads 8 --duration 30 --theta 0.0
 
 # Kiểm chứng tính toàn vẹn 3 Invariants sau khi chạy tải
-.\run.ps1 verify
+.\docker-run.ps1 verify
 ```
 
 ### 2. Dành cho Duy Anh (Kiểm thử NewSQL TiDB):
 ```powershell
 # Nạp dữ liệu TiDB W=10
-.\run.ps1 load-data -w 10 --items 100000 --customers 3000 --target tidb
+.\docker-run.ps1 load-data -w 10 --items 100000 --customers 3000 --target tidb
 
 # Chạy tải TPC-C trên TiDB (8 luồng, 30 giây)
-.\run.ps1 benchmark --target tidb --threads 8 --duration 30 --theta 0.0
+.\docker-run.ps1 benchmark --target tidb --threads 8 --duration 30 --theta 0.0
 
 # Kiểm tra trạng thái phân vùng Region và DDL trên TiDB:
 docker exec tpcc-mysql mysql -htidb0 -P4000 -uroot -e "USE tpcc; SHOW TABLE stock REGIONS;"
@@ -295,11 +399,11 @@ docker exec tpcc-mysql mysql -htidb0 -P4000 -uroot -e "ADMIN SHOW DDL JOBS 5;"
 ### 3. Dành cho Lực (Kiểm thử NoSQL MongoDB & Cache Redis):
 ```powershell
 # Nạp dữ liệu MongoDB W=10 và đồng bộ Redis
-.\run.ps1 load-data -w 10 --items 100000 --customers 3000 --target mongo
-.\run.ps1 load-data -w 10 --items 100000 --customers 3000 --target redis
+.\docker-run.ps1 load-data -w 10 --items 100000 --customers 3000 --target mongo
+.\docker-run.ps1 load-data -w 10 --items 100000 --customers 3000 --target redis
 
 # Chạy tải TPC-C trên MongoDB (8 luồng, 30 giây)
-.\run.ps1 benchmark --target mongo --threads 8 --duration 30 --theta 0.0
+.\docker-run.ps1 benchmark --target mongo --threads 8 --duration 30 --theta 0.0
 
 # Kiểm tra bộ nhớ Redis và số lượng collections trong MongoDB:
 docker exec tpcc-redis redis-cli info memory
@@ -308,12 +412,103 @@ docker exec tpcc-mongodb mongosh tpcc --eval "db.stock.countDocuments()"
 
 ---
 
-## PHẦN 6: BỘ TIÊU CHÍ NGHIỆM THU MỤC 2.1 (ACCEPTANCE CRITERIA)
+## PHẦN 6: QUY TẮC BẮT BUỘC VỀ MINH CHỨNG THỰC NGHIỆM VÀ QUY CHUẨN LẬP LUẬN BÁO CÁO
 
-Một tiểu mục trong 2.1 được coi là hoàn thành đạt yêu cầu khi thỏa mãn đầy đủ 4 tiêu chí sau:
+Căn cứ theo quy định học thuật và slide bài giảng của Giảng viên phụ trách học phần, toàn bộ các thành viên (Cường, Duy Anh, Lực) khi thực hiện đo đạc thực nghiệm và viết báo cáo BTL bắt buộc phải tuân thủ nghiêm ngặt các quy tắc sau:
+
+### 6.1. Nguyên tắc cốt lõi về hình thức minh chứng
+
+1. **Không chỉ nộp ảnh chụp màn hình đồ họa (GUI):**
+   * Giảng viên quy định rõ ràng: **Tuyệt đối không chỉ chụp ảnh màn hình giao diện đồ họa phần mềm** (như MySQL Workbench, MongoDB Compass, Redis Insight) rồi chèn vào báo cáo.
+   * Ảnh chụp GUI chỉ mang tính chất minh họa phụ trợ (visual aid) cho cấu trúc bảng hoặc kết nối, không được dùng làm minh chứng duy nhất cho kết quả thực nghiệm.
+
+2. **Bắt buộc có câu lệnh và kết quả dạng văn bản (Commands + Copied text outputs):**
+   * Mọi kết quả đo đạc, benchmark hoặc trạng thái hệ thống phải **đi kèm chính xác câu lệnh đã chạy** (câu lệnh SQL, script NoSQL/MongoDB, lệnh CLI, tham số đo đạc: số luồng worker threads, thời gian duration, hệ số skew $\theta$, warehouse scale $W$).
+   * Bắt buộc phải **trích xuất nguyên văn khối văn bản kết quả trả về từ terminal/console** (sử dụng định dạng Markdown code block ` ```text `).
+
+3. **Tính tái lập (Reproducibility):**
+   * Báo cáo phải cung cấp đầy đủ thông tin để người chấm hoặc người khác có thể chạy lại câu lệnh và thu được kết quả tương đương:
+     * Phiên bản chính xác của từng DBMS (MySQL 8.0.46 Community, TiDB v7.5.1, MongoDB 7.0 Community, Redis 7.0-alpine).
+     * Môi trường hệ điều hành và thông số phần cứng máy chủ (OS, số vCPU, dung lượng RAM).
+     * Cấu hình tham số tài nguyên cốt lõi (Buffer Pool = 512MB, Repeatable Read, Lock Wait Timeout = 5s, WiredTiger Cache = 0.5GB, TiDB TSO, TiKV Raft Region 96MB).
+     * Thứ tự các bước thực hiện kịch bản đo đạc.
+
+---
+
+### 6.2. Quy chuẩn lập luận và kết luận trong báo cáo
+
+Slide bài giảng nhấn mạnh sinh viên **không được đưa ra nhận định chủ quan, cảm tính**, ví dụ các cách viết sau đây sẽ bị coi là thiếu cơ sở khoa học:
+* ❌ *Nhận định cảm tính:* "Hệ quản trị A chạy nhanh hơn hệ quản trị B."
+* ❌ *Nhận định cảm tính:* "MongoDB xử lý tốt hơn MySQL rất nhiều."
+* ❌ *Nhận định cảm tính:* "TiDB là NewSQL nên hiệu năng vượt trội hơn hệ thống truyền thống."
+
+#### Mẫu câu quy chuẩn lập luận bắt buộc:
+Mọi kết luận đánh giá so sánh trong báo cáo phải áp dụng chính xác cấu trúc lập luận nhân - quả khoa học:
+
+> 📌 **Cấu trúc chuẩn:**  
+> *"Dưới tải công việc **W**, ở quy mô dữ liệu **N** và cấu hình hệ thống **C**, hệ thống **A** ghi nhận giá trị **X** trong khi hệ thống **B** ghi nhận giá trị **Y**; nguyên nhân cốt lõi là do cơ chế **Z** (về cấu trúc trang, giải thuật khóa, hoặc đường dẫn truy cập) tạo ra sự khác biệt về số trang I/O phải đọc/ghi."*
+
+#### Ví dụ chuẩn mực áp dụng vào đề tài:
+* *Ví dụ đối sánh MySQL InnoDB vs TiDB NewSQL khi chạy giao dịch NewOrder có độ lệch tranh chấp Flash-Sale ($\theta = 0.85$, $W=10$):*  
+  > *"Dưới tải công việc giao dịch NewOrder tập trung cao ($\theta = 0.85$, $W=10$), ở quy mô dữ liệu $1.000.000$ bản ghi stock và cùng cấu hình cấp phát 8 luồng đồng thời, MySQL InnoDB ghi nhận thông lượng $382\text{ TPS}$ với độ trễ $p99 = 42\text{ ms}$, trong khi TiDB ghi nhận $146\text{ TPS}$ với độ trễ $p99 = 185\text{ ms}$. Nguyên nhân cốt lõi là do cơ chế kiểm soát đồng thời của TiDB sử dụng giao thức 2-Phase Commit (2PC) phân tán qua mạng giữa TiDB Server và TiKV Raft Leader, cộng thêm chi phí xin nhãn thời gian từ PD TSO và cơ chế phân giải xung đột khóa Pessimistic/Optimistic, tạo ra số vòng bắt tay mạng (RTT network hops) và chi phí I/O ghi nhật ký Raft phân tán lớn hơn đáng kể so với cơ chế khóa dòng tại bộ nhớ chia sẻ cục bộ (Row-level Locking trực tiếp trên InnoDB Buffer Pool) của MySQL."*
+
+---
+
+### 6.3. Cẩm nang trích xuất minh chứng văn bản thực tế cho từng thành viên
+
+#### 1. Dành cho Cường (MySQL Baseline):
+* **Minh chứng Benchmark TPC-C:** Trích xuất nguyên văn khối text kết quả từ terminal khi chạy lệnh:
+  ```text
+  Throughput:          382.40 TPS
+  Total Transactions:  11472 (Success: 11472, Abort/Fail: 0 - 0.00%)
+  ------------------------------------------------------------------------------------------
+  Latency Percentiles (ms):
+     Min:        1.48 ms    |  Mean:      20.85 ms
+     p50:       18.24 ms    |  p90:       34.12 ms
+     p95:       38.90 ms    |  p99:       42.15 ms
+     p99.9:     65.30 ms    |  Max:       82.10 ms
+  ```
+* **Minh chứng Trạng thái Động cơ InnoDB & Bộ đệm:** Chạy lệnh CLI và copy khối text output:
+  ```powershell
+  docker exec tpcc-mysql mysql -uroot -prootpassword tpcc -e "SHOW ENGINE INNODB STATUS\G"
+  docker exec tpcc-mysql mysql -uroot -prootpassword tpcc -e "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_%';"
+  ```
+* **Minh chứng Invariant Audit:** Copy toàn bộ log text các dòng `[PASS]` của lệnh:
+  ```powershell
+  .\docker-run.ps1 verify
+  ```
+
+#### 2. Dành cho Duy Anh (TiDB NewSQL):
+* **Minh chứng Phân vùng Region & Tránh Hotspot:** Chạy lệnh CLI và trích xuất bảng Regions từ TiDB:
+  ```powershell
+  docker exec tpcc-mysql mysql -htidb0 -P4000 -uroot tpcc -e "SHOW TABLE stock REGIONS;"
+  docker exec tpcc-mysql mysql -htidb0 -P4000 -uroot tpcc -e "ADMIN SHOW DDL JOBS 5;"
+  ```
+* **Minh chứng Chế độ giao dịch phân tán:**
+  ```powershell
+  docker exec tpcc-mysql mysql -htidb0 -P4000 -uroot tpcc -e "SELECT @@tidb_txn_mode, @@autocommit;"
+  ```
+
+#### 3. Dành cho Lực (MongoDB NoSQL & Redis Cache):
+* **Minh chứng WiredTiger Cache & Multi-Document Transaction:** Chạy mongosh và trích xuất text JSON:
+  ```powershell
+  docker exec tpcc-mongodb mongosh tpcc --eval "db.serverStatus().wiredTiger.cache"
+  docker exec tpcc-mongodb mongosh tpcc --eval "db.orders.explain('executionStats').find({o_w_id: 1, o_d_id: 1})"
+  ```
+* **Minh chứng Bộ nhớ & Thông số Cache Hit của Redis:**
+  ```powershell
+  docker exec tpcc-redis redis-cli INFO memory
+  docker exec tpcc-redis redis-cli INFO stats
+  ```
+
+---
+
+## PHẦN 7: BỘ TIÊU CHÍ NGHIỆM THU MỤC 2.1 (ACCEPTANCE CRITERIA)
+
+Một tiểu mục trong 2.1 được coi là hoàn thành đạt yêu cầu khi thỏa mãn đầy đủ 4 tiêu chuẩn bắt buộc:
 
 1. **Tính sẵn sàng của hạ tầng:** Cả 4 container (`tpcc-mysql`, `tpcc-tidb`, `tpcc-mongodb`, `tpcc-redis`) đều ở trạng thái `Up` (healthy) và kết nối thông suốt qua cổng host.
 2. **Tính đầy đủ của bộ dữ liệu:** Bảng dữ liệu có đầy đủ 9 bảng/collections TPC-C với $W=10$ kho hàng ($100.000$ items, $1.000.000$ stocks, $300.000$ customers, $\sim 3.000.000$ order_lines).
-3. **Bằng chứng thực nghiệm rõ ràng (Evidence-based):** Báo cáo phải trích xuất trực tiếp kết quả text copy từ terminal (bao gồm TPS, độ trễ min/mean/p50/p90/p99/p99.9, tỷ lệ Abort/Deadlock và kết quả câu lệnh SQL/Mongo), tuyệt đối không dùng ảnh chụp GUI thay thế số liệu.
-4. **Bảo toàn bất biến nghiệp vụ:** Kết quả chạy `.\run.ps1 verify` phải đạt **PASS** trên cả 3 đẳng thức bất biến (Không có lệch doanh thu kho - khu vực, không lệch chuỗi cấp phát `d_next_o_id`, và không mồ côi dòng chi tiết đơn hàng).
+3. **Bằng chứng thực nghiệm đạt chuẩn (Evidence-based):** Báo cáo phải có đầy đủ câu lệnh đã chạy kèm trích xuất trực tiếp kết quả text copy từ terminal (bao gồm TPS, độ trễ min/mean/p50/p90/p95/p99/p99.9, tỷ lệ Abort/Deadlock và kết quả câu lệnh SQL/Mongo), tuân thủ nghiêm ngặt nguyên tắc không dùng ảnh chụp GUI thay thế số liệu văn bản.
+4. **Bảo toàn bất biến nghiệp vụ:** Kết quả chạy `.\docker-run.ps1 verify` (hoặc `.\run.ps1 verify`) phải đạt **PASS** trên cả 3 đẳng thức bất biến (Không có lệch doanh thu kho - khu vực, không lệch chuỗi cấp phát `d_next_o_id`, và không mồ côi dòng chi tiết đơn hàng).
 
